@@ -22,3 +22,248 @@ model User {
 
   @@map("users")
 }
+
+model Warehouse {
+  warehouse_id Int      @id @default(autoincrement())
+  name         String
+  code         String   @unique
+  address      String
+
+  locations     Location[]
+  inventories   Inventory[]
+  reorder_rules ReorderRule[]
+
+  @@map("warehouse")
+}
+
+model Location {
+  location_id  Int    @id @default(autoincrement())
+  name         String
+  code         String
+  warehouse_id Int
+
+  warehouse Warehouse @relation(fields: [warehouse_id], references: [warehouse_id])
+
+  receipt_lines       ReceiptLine[]
+  delivery_lines      DeliveryLine[]
+  transfers_from      InternalTransfer[] @relation("FromLocation")
+  transfers_to        InternalTransfer[] @relation("ToLocation")
+  stock_adjustments   StockAdjustment[]
+  inventories         Inventory[]
+  stock_ledger_entries StockLedger[]
+
+  @@map("location")
+}
+
+model Category {
+  category_id Int    @id @default(autoincrement())
+  name        String
+
+  products Product[]
+
+  @@map("category")
+}
+
+model Product {
+  product_id   Int     @id @default(autoincrement())
+  name         String
+  sku          String  @unique
+  category_id  Int
+  uom          String
+  track_serial Boolean @default(false)
+
+  category Category @relation(fields: [category_id], references: [category_id])
+
+  receipt_lines       ReceiptLine[]
+  delivery_lines      DeliveryLine[]
+  transfer_lines      TransferLine[]
+  adjustment_lines    AdjustmentLine[]
+  inventories         Inventory[]
+  stock_ledger_entries StockLedger[]
+  reorder_rules       ReorderRule[]
+
+  @@map("product")
+}
+
+model Supplier {
+  supplier_id Int    @id @default(autoincrement())
+  name        String
+
+  receipts Receipt[]
+
+  @@map("supplier")
+}
+
+model Customer {
+  customer_id Int    @id @default(autoincrement())
+  name        String
+
+  delivery_orders DeliveryOrder[]
+
+  @@map("customer")
+}
+
+model Receipt {
+  receipt_id     Int      @id @default(autoincrement())
+  receipt_number String   @unique
+  supplier_id    Int
+  created_by     Int
+  received_at    DateTime
+  status         String
+
+  supplier Supplier @relation(fields: [supplier_id], references: [supplier_id])
+
+  receipt_lines ReceiptLine[]
+
+  @@map("receipt")
+}
+
+model ReceiptLine {
+  receipt_line_id Int     @id @default(autoincrement())
+  receipt_id      Int
+  product_id      Int
+  location_id     Int
+  quantity        Decimal
+  unit_price      Decimal
+
+  receipt  Receipt  @relation(fields: [receipt_id], references: [receipt_id])
+  product  Product  @relation(fields: [product_id], references: [product_id])
+  location Location @relation(fields: [location_id], references: [location_id])
+
+  @@map("receipt_line")
+}
+
+model DeliveryOrder {
+  delivery_id     Int      @id @default(autoincrement())
+  delivery_number String   @unique
+  customer_id     Int
+  created_by      Int
+  shipped_at      DateTime
+  status          String
+
+  customer Customer @relation(fields: [customer_id], references: [customer_id])
+
+  delivery_lines DeliveryLine[]
+
+  @@map("delivery_order")
+}
+
+model DeliveryLine {
+  delivery_line_id Int     @id @default(autoincrement())
+  delivery_id      Int
+  product_id       Int
+  location_id      Int
+  quantity         Decimal
+
+  delivery_order DeliveryOrder @relation(fields: [delivery_id], references: [delivery_id])
+  product        Product       @relation(fields: [product_id], references: [product_id])
+  location       Location      @relation(fields: [location_id], references: [location_id])
+
+  @@map("delivery_line")
+}
+
+model InternalTransfer {
+  transfer_id      Int      @id @default(autoincrement())
+  transfer_number  String   @unique
+  created_by       Int
+  from_location_id Int
+  to_location_id   Int
+  transfer_date    DateTime
+  status           String
+
+  from_location Location @relation("FromLocation", fields: [from_location_id], references: [location_id])
+  to_location   Location @relation("ToLocation", fields: [to_location_id], references: [location_id])
+
+  transfer_lines TransferLine[]
+
+  @@map("internal_transfer")
+}
+
+model TransferLine {
+  transfer_line_id Int     @id @default(autoincrement())
+  transfer_id      Int
+  product_id       Int
+  quantity         Decimal
+
+  transfer InternalTransfer @relation(fields: [transfer_id], references: [transfer_id])
+  product  Product          @relation(fields: [product_id], references: [product_id])
+
+  @@map("transfer_line")
+}
+
+model StockAdjustment {
+  adjustment_id     Int      @id @default(autoincrement())
+  adjustment_number String   @unique
+  created_by        Int
+  location_id       Int
+  adjusted_at       DateTime
+  reason            String?
+
+  location Location @relation(fields: [location_id], references: [location_id])
+
+  adjustment_lines AdjustmentLine[]
+
+  @@map("stock_adjustment")
+}
+
+model AdjustmentLine {
+  adjustment_line_id Int     @id @default(autoincrement())
+  adjustment_id      Int
+  product_id         Int
+  old_quantity       Decimal
+  new_quantity       Decimal
+  difference         Decimal
+
+  adjustment StockAdjustment @relation(fields: [adjustment_id], references: [adjustment_id])
+  product    Product         @relation(fields: [product_id], references: [product_id])
+
+  @@map("adjustment_line")
+}
+
+model Inventory {
+  inventory_id      Int     @id @default(autoincrement())
+  product_id        Int
+  warehouse_id      Int
+  location_id       Int
+  quantity_on_hand  Decimal
+  reserved_quantity Decimal
+
+  product   Product   @relation(fields: [product_id], references: [product_id])
+  warehouse Warehouse @relation(fields: [warehouse_id], references: [warehouse_id])
+  location  Location  @relation(fields: [location_id], references: [location_id])
+
+  @@unique([product_id, warehouse_id, location_id])
+  @@map("inventory")
+}
+
+model StockLedger {
+  ledger_id        Int      @id @default(autoincrement())
+  product_id       Int
+  location_id      Int
+  transaction_type String
+  reference_id     Int
+  reference_type   String
+  quantity_change  Decimal
+  timestamp        DateTime
+  performed_by     Int
+  notes            String?
+
+  product  Product  @relation(fields: [product_id], references: [product_id])
+  location Location @relation(fields: [location_id], references: [location_id])
+
+  @@map("stock_ledger")
+}
+
+model ReorderRule {
+  rule_id      Int     @id @default(autoincrement())
+  product_id   Int
+  warehouse_id Int
+  min_qty      Decimal
+  reorder_qty  Decimal
+
+  product   Product   @relation(fields: [product_id], references: [product_id])
+  warehouse Warehouse @relation(fields: [warehouse_id], references: [warehouse_id])
+
+  @@unique([product_id, warehouse_id])
+  @@map("reorder_rule")
+}
